@@ -1,14 +1,14 @@
 import { supabase } from './client';
-import { Transaction, TransactionInput, RiderName } from '@/types';
+import { Transaction, TransactionInput, RiderName, FinancialSummary } from '@/types';
 
 export const transactionService = {
-  async getAll(riderName?: RiderName, year?: number, month?: number) {
+  async getAll(riderName?: RiderName, year?: number) {
     let query = supabase
       .from('transactions')
       .select('*')
       .order('date', { ascending: false });
     
-    if (riderName && riderName !== ('All' as any)) {
+    if (riderName && (riderName as string) !== 'All') {
       query = query.eq('rider_name', riderName);
     }
 
@@ -42,7 +42,7 @@ export const transactionService = {
     if (error) throw error;
   },
 
-  async getSummary(year: number, month?: number, riderName?: RiderName) {
+  async getSummary(year: number, month?: number, riderName?: RiderName): Promise<FinancialSummary> {
     let query = supabase.from('transactions').select('*');
 
     if (month) {
@@ -52,14 +52,14 @@ export const transactionService = {
       query = query.gte('date', `${year}-01-01`).lte('date', `${year}-12-31`);
     }
 
-    if (riderName && riderName !== ('All' as any)) {
+    if (riderName && (riderName as string) !== 'All') {
       query = query.eq('rider_name', riderName);
     }
 
     const { data, error } = await query;
     if (error) throw error;
 
-    const summary = (data as Transaction[]).reduce((acc, curr) => {
+    const summary = (data as Transaction[]).reduce((acc: FinancialSummary, curr) => {
       const amount = Number(curr.amount);
       const rider = curr.rider_name;
 
@@ -85,8 +85,8 @@ export const transactionService = {
       totalExpense: 0,
       netProfit: 0,
       totalTrips: 0,
-      appBreakdown: {} as any,
-      riderBreakdown: {} as any
+      appBreakdown: {},
+      riderBreakdown: {}
     });
 
     summary.netProfit = summary.totalIncome - summary.totalExpense;

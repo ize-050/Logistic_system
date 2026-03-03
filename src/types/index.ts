@@ -1,14 +1,13 @@
-import { AppType } from "@/types";
-
+export type AppType = 'Grab' | 'Bolt' | 'Lalamove' | 'Other';
 export type TransactionType = 'Income' | 'Expense';
-export type RiderName = 'Ice' | 'Mind'; // เพิ่มประเภทคนขับ
+export type RiderName = 'Ice' | 'Mind';
 
 export interface Transaction {
   id: string;
   date: string;
   type: TransactionType;
   app: AppType;
-  rider_name: RiderName; // เพิ่มฟิลด์ชื่อคนขับ
+  rider_name: RiderName;
   category: string;
   amount: number;
   trips: number;
@@ -23,6 +22,6 @@ export interface FinancialSummary {
   totalExpense: number;
   netProfit: number;
   totalTrips: number;
-  appBreakdown: Record<AppType, number>;
+  appBreakdown: Record<string, number>;
   riderBreakdown: Record<string, { income: number; expense: number; profit: number }>;
 }

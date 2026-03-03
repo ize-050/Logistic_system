@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  TrendingUp, Bike, Car, Truck, Calendar as CalendarIcon, 
-  Plus, BarChart3, Wallet, ArrowDownCircle, ArrowUpCircle, Trash2, ChevronDown
+  TrendingUp, 
+  Plus, Wallet, ArrowDownCircle, ArrowUpCircle, Trash2, Bike, Car, Truck
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import TransactionModal from '@/components/entry/TransactionModal';
 import { transactionService } from '@/lib/supabase/service';
-import { Transaction, FinancialSummary, RiderName } from '@/types';
+import { Transaction, FinancialSummary, RiderName, TransactionInput } from '@/types';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June', 
@@ -19,7 +18,6 @@ export default function LogisticsDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeRider, setActiveRider] = useState<RiderName | 'All'>('Ice');
   
-  // Time State
   const now = new Date();
   const [viewType, setViewType] = useState<'Monthly' | 'Yearly'>('Monthly');
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -27,11 +25,11 @@ export default function LogisticsDashboard() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<FinancialSummary>({
-    totalIncome: 0, totalExpense: 0, netProfit: 0, totalTrips: 0, appBreakdown: {} as any, riderBreakdown: {}
+    totalIncome: 0, totalExpense: 0, netProfit: 0, totalTrips: 0, appBreakdown: {}, riderBreakdown: {}
   });
   const [loading, setLoading] = useState(true);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const riderParam = activeRider === 'All' ? undefined : activeRider as RiderName;
@@ -46,23 +44,24 @@ export default function LogisticsDashboard() {
       );
       setSummary(s);
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeRider, selectedYear, selectedMonth, viewType]);
 
   useEffect(() => {
     fetchData();
-  }, [activeRider, selectedYear, selectedMonth, viewType]);
+  }, [fetchData]);
 
-  const handleAddTransaction = async (data: any) => {
+  const handleAddTransaction = async (data: TransactionInput) => {
     try {
       const riderToSave = activeRider === 'All' ? 'Ice' : activeRider;
       await transactionService.create({ ...data, rider_name: riderToSave });
       setIsModalOpen(false);
       fetchData();
     } catch (err) {
+      console.error('Error saving:', err);
       alert('Error saving data!');
     }
   };
@@ -73,6 +72,7 @@ export default function LogisticsDashboard() {
         await transactionService.delete(id);
         fetchData();
       } catch (err) {
+        console.error('Error deleting:', err);
         alert('ลบไม่สำเร็จ กรุณาลองใหม่');
       }
     }
@@ -81,21 +81,20 @@ export default function LogisticsDashboard() {
   return (
     <div className="min-h-screen bg-[#0B0F1A] text-slate-200 font-sans selection:bg-cyan-500/30 overflow-x-hidden">
       
-      {/* Top Rider Switcher */}
       <div className="bg-slate-900/50 border-b border-slate-800/50 px-6 py-3 flex justify-center gap-2 sticky top-0 z-40 backdrop-blur-md">
         <RiderTab active={activeRider === 'Ice'} onClick={() => setActiveRider('Ice')} name="ICE" color="bg-cyan-500" />
         <RiderTab active={activeRider === 'Mind'} onClick={() => setActiveRider('Mind')} name="MIND" color="bg-purple-500" />
         <RiderTab active={activeRider === 'All'} onClick={() => setActiveRider('All')} name="TOTAL" color="bg-slate-600" />
       </div>
 
-      <header className="bg-slate-900/40 border-b border-slate-800 px-6 py-6 space-y-4">
+      <header className="bg-slate-900/40 border-b border-slate-800 px-6 py-6 space-y-4 text-white">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 text-white">
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-500 ${activeRider === 'Mind' ? 'bg-purple-600 shadow-purple-500/20' : activeRider === 'Ice' ? 'bg-cyan-600 shadow-cyan-500/20' : 'bg-slate-600 shadow-slate-500/20'}`}>
               <TrendingUp className="text-white" size={28} />
             </div>
             <div>
-              <h1 className="font-black text-2xl tracking-tighter text-white leading-none uppercase italic">Rider Pro</h1>
+              <h1 className="font-black text-2xl tracking-tighter text-white leading-none uppercase italic text-white">Rider Pro</h1>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-1 italic">
                 {activeRider} Portfolio
               </p>
@@ -104,11 +103,10 @@ export default function LogisticsDashboard() {
           {loading && <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>}
         </div>
 
-        {/* Time Filters */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-slate-900">
            <select 
              value={viewType} 
-             onChange={(e: any) => setViewType(e.target.value)}
+             onChange={(e) => setViewType(e.target.value as 'Monthly' | 'Yearly')}
              className="bg-slate-800 border-none rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-300 py-2 pl-3 pr-8 focus:ring-0"
            >
              <option value="Monthly">Monthly</option>
@@ -117,7 +115,7 @@ export default function LogisticsDashboard() {
            
            <select 
              value={selectedYear} 
-             onChange={(e: any) => setSelectedYear(Number(e.target.value))}
+             onChange={(e) => setSelectedYear(Number(e.target.value))}
              className="bg-slate-800 border-none rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-300 py-2 pl-3 pr-8 focus:ring-0"
            >
              {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
@@ -126,7 +124,7 @@ export default function LogisticsDashboard() {
            {viewType === 'Monthly' && (
              <select 
                value={selectedMonth} 
-               onChange={(e: any) => setSelectedMonth(Number(e.target.value))}
+               onChange={(e) => setSelectedMonth(Number(e.target.value))}
                className="bg-slate-800 border-none rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-300 py-2 pl-3 pr-8 focus:ring-0"
              >
                {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
@@ -135,9 +133,8 @@ export default function LogisticsDashboard() {
         </div>
       </header>
 
-      <main className="p-6 max-w-2xl mx-auto space-y-8 pb-32">
+      <main className="p-6 max-w-2xl mx-auto space-y-8 pb-32 text-slate-200">
         
-        {/* Main Financial Card */}
         <section className={`rounded-[2.5rem] p-8 border shadow-2xl relative overflow-hidden transition-all duration-500 ${activeRider === 'Mind' ? 'bg-gradient-to-br from-purple-900/40 to-slate-900 border-purple-500/20' : activeRider === 'Ice' ? 'bg-gradient-to-br from-cyan-900/40 to-slate-900 border-cyan-500/20' : 'bg-slate-800 border-slate-700/50'}`}>
           <div className="absolute top-0 right-0 p-8 opacity-5 text-white">
             <Wallet size={150} />
@@ -167,7 +164,6 @@ export default function LogisticsDashboard() {
           </div>
         </section>
 
-        {/* TEAM BREAKDOWN */}
         {activeRider === 'All' && (
           <section className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
              <div className="bg-slate-900/80 p-5 rounded-[2rem] border border-cyan-500/20 shadow-lg">
@@ -187,7 +183,12 @@ export default function LogisticsDashboard() {
           </section>
         )}
 
-        {/* Activity Ledger */}
+        <section className="grid grid-cols-3 gap-3">
+            <AppSmallCard icon={<Bike size={18} className="text-green-500" />} amount={summary.appBreakdown['Grab'] || 0} label="Grab" />
+            <AppSmallCard icon={<Car size={18} className="text-blue-500" />} amount={summary.appBreakdown['Bolt'] || 0} label="Bolt" />
+            <AppSmallCard icon={<Truck size={18} className="text-orange-500" />} amount={summary.appBreakdown['Lalamove'] || 0} label="Lala" />
+        </section>
+
         <section>
           <div className="flex justify-between items-center mb-4 px-2">
             <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Activity History</h3>
@@ -229,7 +230,6 @@ export default function LogisticsDashboard() {
 
       </main>
 
-      {/* Floating Action Bar */}
       {activeRider !== 'All' && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-md z-40">
           <button 
@@ -247,13 +247,36 @@ export default function LogisticsDashboard() {
   );
 }
 
-function RiderTab({ active, onClick, name, color }: any) {
+interface RiderTabProps {
+  active: boolean;
+  onClick: () => void;
+  name: string;
+  color: string;
+}
+
+function RiderTab({ active, onClick, name, color }: RiderTabProps) {
   return (
     <button 
       onClick={onClick}
-      className={`px-5 py-2 rounded-2xl text-[9px] font-black tracking-widest transition-all duration-300 ${active ? `${color} text-white shadow-lg shadow-${color.split('-')[1]}-500/20` : 'bg-slate-800/50 text-slate-500 hover:bg-slate-800'}`}
+      className={`px-5 py-2 rounded-2xl text-[9px] font-black tracking-widest transition-all duration-300 ${active ? `${color} text-white shadow-lg` : 'bg-slate-800/50 text-slate-500 hover:bg-slate-800'}`}
     >
       {name}
     </button>
+  );
+}
+
+interface AppSmallCardProps {
+  icon: React.ReactNode;
+  amount: number;
+  label: string;
+}
+
+function AppSmallCard({ icon, amount, label }: AppSmallCardProps) {
+  return (
+    <div className="bg-slate-900/50 p-4 rounded-[1.8rem] border border-slate-800/50 flex flex-col items-center gap-1 shadow-inner">
+      <div className="mb-1">{icon}</div>
+      <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.1em]">{label}</p>
+      <p className="text-xs font-black text-white">฿{amount.toLocaleString()}</p>
+    </div>
   );
 }
