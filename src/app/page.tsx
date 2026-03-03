@@ -27,26 +27,37 @@ export default function LogisticsDashboard() {
   const [summary, setSummary] = useState<FinancialSummary>({
     totalIncome: 0, totalExpense: 0, netProfit: 0, totalTrips: 0, appBreakdown: {}, riderBreakdown: {}
   });
+  const [prevSummary, setPrevSummary] = useState<FinancialSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const riderParam = activeRider === 'All' ? undefined : activeRider as RiderName;
-      
+
       const data = await transactionService.getAll(
-        riderParam, 
-        selectedYear, 
+        riderParam,
+        selectedYear,
         viewType === 'Monthly' ? selectedMonth : undefined
       );
       setTransactions(data);
-      
+
       const s = await transactionService.getSummary(
-        selectedYear, 
-        viewType === 'Monthly' ? selectedMonth : undefined, 
+        selectedYear,
+        viewType === 'Monthly' ? selectedMonth : undefined,
         riderParam
       );
       setSummary(s);
+
+      // fetch previous month summary for comparison (Monthly view only)
+      if (viewType === 'Monthly') {
+        const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+        const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+        const ps = await transactionService.getSummary(prevYear, prevMonth, riderParam);
+        setPrevSummary(ps);
+      } else {
+        setPrevSummary(null);
+      }
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -146,10 +157,20 @@ export default function LogisticsDashboard() {
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">
             Net Profit {viewType === 'Monthly' ? `in ${MONTHS[selectedMonth-1]}` : `in ${selectedYear}`}
           </p>
-          <h2 className={`text-6xl font-black mb-6 tracking-tighter ${summary.netProfit >= 0 ? 'text-white' : 'text-rose-500'}`}>
-            ฿{summary.netProfit.toLocaleString()}
-          </h2>
-          
+          <div className="flex items-end gap-3 mb-6">
+            <h2 className={`text-6xl font-black tracking-tighter ${summary.netProfit >= 0 ? 'text-white' : 'text-rose-500'}`}>
+              ฿{summary.netProfit.toLocaleString()}
+            </h2>
+            {prevSummary && viewType === 'Monthly' && (
+              <div className="mb-2">
+                <DiffBadge current={summary.netProfit} prev={prevSummary.netProfit} positiveIsGood />
+                <p className="text-[8px] text-slate-600 font-black uppercase tracking-widest mt-1 text-center">
+                  vs {MONTHS[selectedMonth === 1 ? 11 : selectedMonth - 2].substring(0, 3)}
+                </p>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-emerald-500/10 rounded-3xl p-5 border border-emerald-500/10 backdrop-blur-sm">
               <div className="flex items-center gap-2 text-emerald-500 mb-2">
@@ -157,6 +178,11 @@ export default function LogisticsDashboard() {
                 <span className="text-[10px] font-black uppercase tracking-wider">Income</span>
               </div>
               <p className="text-2xl font-black text-white">฿{summary.totalIncome.toLocaleString()}</p>
+              {prevSummary && viewType === 'Monthly' && (
+                <div className="mt-2">
+                  <DiffBadge current={summary.totalIncome} prev={prevSummary.totalIncome} positiveIsGood size="sm" />
+                </div>
+              )}
             </div>
             <div className="bg-rose-500/10 rounded-3xl p-5 border border-rose-500/10 backdrop-blur-sm">
               <div className="flex items-center gap-2 text-rose-500 mb-2">
@@ -164,6 +190,11 @@ export default function LogisticsDashboard() {
                 <span className="text-[10px] font-black uppercase tracking-wider">Expense</span>
               </div>
               <p className="text-2xl font-black text-white">฿{summary.totalExpense.toLocaleString()}</p>
+              {prevSummary && viewType === 'Monthly' && (
+                <div className="mt-2">
+                  <DiffBadge current={summary.totalExpense} prev={prevSummary.totalExpense} positiveIsGood={false} size="sm" />
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -282,5 +313,65 @@ function AppSmallCard({ icon, amount, label }: AppSmallCardProps) {
       <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.1em]">{label}</p>
       <p className="text-xs font-black text-white">฿{amount.toLocaleString()}</p>
     </div>
+  );
+}
+
+// --- Monthly Comparison Helpers ---
+
+type DiffResult =
+  | { kind: 'pct'; value: number }
+  | { kind: 'new' }
+  | { kind: 'flat' }
+  | { kind: 'empty' };
+
+function calcDiff(current: number, prev: number): DiffResult {
+  if (prev === 0 && current === 0) return { kind: 'empty' };
+  if (prev === 0 && current > 0) return { kind: 'new' };
+  if (prev === 0 && current < 0) return { kind: 'new' };
+  const pct = Math.round(((current - prev) / Math.abs(prev)) * 100);
+  if (pct === 0) return { kind: 'flat' };
+  return { kind: 'pct', value: pct };
+}
+
+interface DiffBadgeProps {
+  current: number;
+  prev: number;
+  positiveIsGood: boolean;
+  size?: 'sm' | 'md';
+}
+
+function DiffBadge({ current, prev, positiveIsGood, size = 'md' }: DiffBadgeProps) {
+  const diff = calcDiff(current, prev);
+  const textSize = size === 'sm' ? 'text-[9px]' : 'text-[10px]';
+
+  if (diff.kind === 'empty') return null;
+
+  if (diff.kind === 'new') {
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-black ${textSize} bg-cyan-500/15 text-cyan-400`}>
+        ✦ NEW
+      </span>
+    );
+  }
+
+  if (diff.kind === 'flat') {
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-black ${textSize} bg-slate-700/50 text-slate-400`}>
+        — same
+      </span>
+    );
+  }
+
+  const isPositive = diff.value > 0;
+  const isGood = positiveIsGood ? isPositive : !isPositive;
+  const colorClass = isGood ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400';
+  const arrow = isPositive ? '▲' : '▼';
+  const absVal = Math.abs(diff.value);
+  const label = absVal > 999 ? '999%+' : `${absVal}%`;
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-black ${textSize} ${colorClass}`}>
+      {arrow} {label}
+    </span>
   );
 }
