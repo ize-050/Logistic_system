@@ -2,7 +2,7 @@ import { supabase } from './client';
 import { Transaction, TransactionInput, RiderName, FinancialSummary } from '@/types';
 
 export const transactionService = {
-  async getAll(riderName?: RiderName, year?: number) {
+  async getAll(riderName?: RiderName, year?: number, month?: number) {
     let query = supabase
       .from('transactions')
       .select('*')
@@ -13,9 +13,24 @@ export const transactionService = {
     }
 
     if (year) {
-      const start = `${year}-01-01`;
-      const end = `${year}-12-31`;
-      query = query.gte('date', start).lte('date', end);
+      if (month) {
+        // กรองตามปีและเดือน (Monthly Mode)
+        const monthStr = month < 10 ? `0${month}` : month;
+        const startDate = `${year}-${monthStr}-01`;
+        // ใช้ date_trunc หรือหาทางที่ง่ายกว่า: กรองให้อยู่ในเดือนนั้น
+        const endDate = month === 12 
+          ? `${year}-12-31` 
+          : `${year}-${(month + 1) < 10 ? `0${month + 1}` : month + 1}-01`;
+        
+        if (month === 12) {
+            query = query.gte('date', startDate).lte('date', endDate);
+        } else {
+            query = query.gte('date', startDate).lt('date', endDate);
+        }
+      } else {
+        // กรองตามปีอย่างเดียว (Yearly Mode)
+        query = query.gte('date', `${year}-01-01`).lte('date', `${year}-12-31`);
+      }
     }
     
     const { data, error } = await query;
@@ -47,7 +62,16 @@ export const transactionService = {
 
     if (month) {
       const monthStr = month < 10 ? `0${month}` : month;
-      query = query.gte('date', `${year}-${monthStr}-01`).lte('date', `${year}-${monthStr}-31`);
+      const startDate = `${year}-${monthStr}-01`;
+      const endDate = month === 12 
+          ? `${year}-12-31` 
+          : `${year}-${(month + 1) < 10 ? `0${month + 1}` : month + 1}-01`;
+      
+      if (month === 12) {
+          query = query.gte('date', startDate).lte('date', endDate);
+      } else {
+          query = query.gte('date', startDate).lt('date', endDate);
+      }
     } else {
       query = query.gte('date', `${year}-01-01`).lte('date', `${year}-12-31`);
     }

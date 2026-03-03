@@ -34,7 +34,11 @@ export default function LogisticsDashboard() {
       setLoading(true);
       const riderParam = activeRider === 'All' ? undefined : activeRider as RiderName;
       
-      const data = await transactionService.getAll(riderParam, selectedYear);
+      const data = await transactionService.getAll(
+        riderParam, 
+        selectedYear, 
+        viewType === 'Monthly' ? selectedMonth : undefined
+      );
       setTransactions(data);
       
       const s = await transactionService.getSummary(
